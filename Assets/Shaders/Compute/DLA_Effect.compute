@@ -1,0 +1,133 @@
+﻿/**
+ * Lookup tables and algorithm taken from "Polygonising a scalar field" by Paul Bourke
+ *
+ * Original at: http://paulbourke.net/geometry/polygonise/
+ */
+
+#include "shaderQuat.cginc"
+#include "shaderMath.cginc"
+
+#pragma kernel DLA_Compute
+#pragma kernel CalculateInstances
+
+float _minRadius;
+float _maxRadius;
+float _cubeScale;
+int _numDLAParticles;
+
+StructuredBuffer<float3> DLAParticles;
+
+struct Vertex
+{
+	float3 vPosition;
+	float3 vNormal;
+    float3 vColor;
+};
+
+struct Triangle
+{
+	Vertex v[3];
+};
+
+AppendStructuredBuffer<Triangle> triangleRW;
+RWStructuredBuffer<uint> _numVertices;
+
+[numthreads(1, 1, 1)]
+void CalculateInstances(uint3 threadId : SV_DispatchThreadID)
+{
+
+    _numVertices[1] = (_numVertices[0] / 21666) + 1; //21666 is 64998/3
+    _numVertices[0] = _numVertices[0] / _numVertices[1];
+    _numVertices[0] = _numVertices[0] * 3;
+}
+
+static const float3 baseCube[8] =
+{
+    float3(-1, -1, 1),
+    float3(1, -1, 1),
+    float3(1, 1, 1),
+    float3(-1, 1, 1),
+
+    float3(-1, -1, -1),
+    float3(1, -1, -1),
+    float3(1, 1, -1),
+    float3(-1, 1, -1)
+};
+
+static const float3 normals[6] =
+{
+    float3(0, 0, 1),
+    float3(1, 0, 0),
+    float3(0, 0, -1),
+
+    float3(-1, 0, 0),
+    float3(0, 1, 0),
+    float3(0, -1, 0),
+};
+
+static const int quads[6][4] =
+{
+    { 0, 1, 2, 3 }, // f
+    { 1, 5, 6, 2 }, // r
+    { 5, 4, 7, 6 }, // b
+    { 4, 0, 3, 7 }, // l
+    { 3, 2, 6, 7 }, // t
+    { 4, 5, 1, 0 }, // bt   
+};
+
+void InsertFace(int face, float size, float3 center)
+{
+    Triangle t1;
+    Triangle t2;
+
+    Vertex v0;
+    Vertex v1;
+    Vertex v2;
+    Vertex v3;
+
+    v0.vPosition = center + baseCube[quads[face][0]] * size;
+    v1.vPosition = center + baseCube[quads[face][1]] * size;
+    v2.vPosition = center + baseCube[quads[face][2]] * size;
+    v3.vPosition = center + baseCube[quads[face][3]] * size;
+
+    v0.vNormal = normals[face];
+    v1.vNormal = normals[face];
+    v2.vNormal = normals[face];
+    v3.vNormal = normals[face];
+
+    float3 color = float3(1, 1, 1);
+    v0.vColor = color;
+    v1.vColor = color;
+    v2.vColor = color;
+    v3.vColor = color;
+
+    t1.v[0] = v0;
+    t1.v[1] = v1;
+    t1.v[2] = v2;
+
+    t2.v[0] = v0;
+    t2.v[1] = v2;
+    t2.v[2] = v3;
+
+    triangleRW.Append(t1);
+    triangleRW.Append(t2);
+}
+
+[numthreads(64, 1, 1)]
+void DLA_Compute(uint3 threadId : SV_DispatchThreadID)
+{
+    float3 cubeCenter = DLAParticles[threadId.x];
+
+    if (length(cubeCenter) < _minRadius)
+        return;
+
+    if (length(cubeCenter) > _maxRadius)
+        return;
+
+    InsertFace(0, _cubeScale, cubeCenter);
+    InsertFace(1, _cubeScale, cubeCenter);
+    InsertFace(2, _cubeScale, cubeCenter);
+    InsertFace(3, _cubeScale, cubeCenter);
+    InsertFace(4, _cubeScale, cubeCenter);
+    InsertFace(5, _cubeScale, cubeCenter);
+}

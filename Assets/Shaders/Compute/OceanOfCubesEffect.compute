@@ -1,0 +1,206 @@
+﻿/**
+ * Lookup tables and algorithm taken from "Polygonising a scalar field" by Paul Bourke
+ *
+ * Original at: http://paulbourke.net/geometry/polygonise/
+ */
+
+#include "shaderQuat.cginc"
+#include "shaderMath.cginc"
+
+#pragma kernel OceanOfCubes
+#pragma kernel CalculateInstances
+
+float _cubeScale;
+float _gridSizeURcp;
+float _gridSizeVRcp;
+
+float _minU;
+float _maxU;
+float _minV;
+float _maxV;
+
+float _time;
+
+struct Vertex
+{
+	float3 vPosition;
+	float3 vNormal;
+    float3 vColor;
+};
+
+struct Triangle
+{
+	Vertex v[3];
+};
+
+
+AppendStructuredBuffer<Triangle> triangleRW;
+RWStructuredBuffer<uint> _numVertices;
+
+struct Collider
+{
+    float3 vPosition;
+    float fInfluence;
+};
+
+StructuredBuffer<Collider> colliders;
+
+int _numberOfColliders;
+
+[numthreads(1, 1, 1)]
+void CalculateInstances(uint3 threadId : SV_DispatchThreadID)
+{
+
+    _numVertices[1] = (_numVertices[0] / 21666) + 1; //21666 is 64998/3
+    _numVertices[0] = _numVertices[0] / _numVertices[1];
+    _numVertices[0] = _numVertices[0] * 3;
+}
+
+
+static const float3 baseCube[8] =
+{
+    float3(-1, -1, 1),
+    float3(1, -1, 1),
+    float3(1, 1, 1),
+    float3(-1, 1, 1),
+
+    float3(-1, -1, -1),
+    float3(1, -1, -1),
+    float3(1, 1, -1),
+    float3(-1, 1, -1)
+};
+
+static const float3 normals[6] =
+{
+    float3(0, 0, 1),
+    float3(1, 0, 0),
+    float3(0, 0, -1),
+
+    float3(-1, 0, 0),
+    float3(0, 1, 0),
+    float3(0, -1, 0),
+};
+
+static const int quads[6][4] =
+{
+    { 0, 1, 2, 3 }, // f
+    { 1, 5, 6, 2 }, // r
+    { 5, 4, 7, 6 }, // b
+    { 4, 0, 3, 7 }, // l
+    { 3, 2, 6, 7 }, // t
+    { 4, 5, 1, 0 }, // bt   
+};
+
+void InsertFace(int face, float size, float3 center, float3 tangent, float3 normal, float3 binormal)
+{
+    float3x3 mat = { tangent.x,tangent.y,tangent.z,
+                    normal.x, normal.y, normal.z, 
+                    binormal.x, binormal.y, binormal.z };
+
+    Triangle t1;
+    Triangle t2;
+
+    Vertex v0;
+    Vertex v1;
+    Vertex v2;
+    Vertex v3;
+
+    float scale = size;
+
+    for (int i = 0; i < _numberOfColliders; i++)
+    {
+        scale *= smoothstep(0.0f, 1.0f, length(center - colliders[i].vPosition) * colliders[i].fInfluence);
+    }
+  
+    v0.vPosition = center + mul(mat, baseCube[quads[face][0]]) * scale;
+    v1.vPosition = center + mul(mat, baseCube[quads[face][1]]) * scale;
+    v2.vPosition = center + mul(mat, baseCube[quads[face][2]]) * scale;
+    v3.vPosition = center + mul(mat, baseCube[quads[face][3]]) * scale;
+
+    float3 nrm = mul(mat, normals[face]);
+    v0.vNormal = nrm;
+    v1.vNormal = nrm;
+    v2.vNormal = nrm;
+    v3.vNormal = nrm;
+
+    float3 color = float3(1, 1, 1);
+    v0.vColor = color;
+    v1.vColor = color;
+    v2.vColor = color;
+    v3.vColor = color;
+
+    t1.v[0] = v0;
+    t1.v[1] = v1;
+    t1.v[2] = v2;
+
+    t2.v[0] = v0;
+    t2.v[1] = v2;
+    t2.v[2] = v3;
+
+    triangleRW.Append(t1);
+    triangleRW.Append(t2);
+}
+
+float hash(float h)
+{
+    return frac(sin(h) * 43758.5453123);
+}
+
+float noise(float3 x)
+{
+    float3 p = floor(x);
+    float3 f = frac(x);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n = p.x + p.y * 157.0 + 113.0 * p.z;
+    return lerp(
+			lerp(lerp(hash(n + 0.0), hash(n + 1.0), f.x),
+					lerp(hash(n + 157.0), hash(n + 158.0), f.x), f.y),
+			lerp(lerp(hash(n + 113.0), hash(n + 114.0), f.x),
+					lerp(hash(n + 270.0), hash(n + 271.0), f.x), f.y), f.z);
+}
+
+float fbm(float3 p)
+{
+    float f = 0.0;
+    f = 0.5000 * noise(p);
+    p *= 2.01;
+    f += 0.2500 * noise(p);
+    p *= 2.02;
+    f += 0.1250 * noise(p);
+
+    return f;
+}
+
+[numthreads(8, 8, 1)]
+void OceanOfCubes(uint3 threadId : SV_DispatchThreadID)
+{
+    float param = _time * 0.005;
+    float3 coordsX = { threadId.x, threadId.y, param };
+    float3 coordsY = { threadId.x, param, threadId.y };
+    float3 coordsZ = { param, threadId.x, threadId.y };
+
+    float3 cubeCenter = { noise(coordsX), noise(coordsY), noise(coordsZ) };
+    float3 cubeCenterX = { noise(coordsX + 0.1f), noise(coordsY), noise(coordsZ) };
+    float3 cubeCenterY = { noise(coordsX), noise(coordsY + 0.1f), noise(coordsZ) };
+    float3 axis = float3(normalize(cubeCenterX - cubeCenter));
+    float3 axis2 = float3(normalize(cubeCenterY - cubeCenter));
+
+    float3 tangent = float3(1, 0, 0);
+    float3 normal = float3(0, 1, 0);
+    float3 binormal = float3(0, 0, 1);
+
+    float4 Quat = picoQuatAxisAngleToQuat(axis, _time);
+    Quat = picoQuatMul(Quat, picoQuatAxisAngleToQuat(axis2, _time));
+
+    tangent = picoQuatRotateVector(Quat, tangent);
+    normal = picoQuatRotateVector(Quat, normal);
+    binormal = picoQuatRotateVector(Quat, binormal);
+
+    InsertFace(0, _cubeScale, cubeCenter, tangent, normal, binormal);
+    InsertFace(1, _cubeScale, cubeCenter, tangent, normal, binormal);
+    InsertFace(2, _cubeScale, cubeCenter, tangent, normal, binormal);
+    InsertFace(3, _cubeScale, cubeCenter, tangent, normal, binormal);
+    InsertFace(4, _cubeScale, cubeCenter, tangent, normal, binormal);
+    InsertFace(5, _cubeScale, cubeCenter, tangent, normal, binormal);
+}

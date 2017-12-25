@@ -1,0 +1,181 @@
+﻿/**
+ * Lookup tables and algorithm taken from "Polygonising a scalar field" by Paul Bourke
+ *
+ * Original at: http://paulbourke.net/geometry/polygonise/
+ */
+
+#include "shaderQuat.cginc"
+#include "shaderMath.cginc"
+
+#pragma kernel CalculatePearlsInstances
+#pragma kernel CalculatePearlsInstancesForMesh
+
+float _pearlScale;
+float _normalOffset;
+float _gridSizeURcp;
+float _gridSizeVRcp;
+
+float _minU;
+float _maxU;
+float _minV;
+float _maxV;
+
+float _time;
+
+struct Pearl
+{
+	float3 vPosition;
+    float  fScale;
+    float3 vColor;
+};
+
+StructuredBuffer<float3> meshPositions;
+StructuredBuffer<float3> meshNormals;
+
+float4x4 _meshMatrix;
+
+AppendStructuredBuffer<Pearl> Lod_0_positions;
+AppendStructuredBuffer<Pearl> Lod_1_positions;
+AppendStructuredBuffer<Pearl> Lod_2_positions;
+AppendStructuredBuffer<Pearl> Lod_3_positions;
+AppendStructuredBuffer<Pearl> Lod_4_positions;
+
+float _Lod_0_distance;
+float _Lod_1_distance;
+float _Lod_2_distance;
+float _Lod_3_distance;
+float _Lod_4_distance;
+
+float3 _cameraWorldPos;
+float4x4 _instancerMatrix;
+
+TextureCube _envMap;
+
+SamplerState myLinearClampSampler;
+
+struct Collider
+{
+    float3 vPosition;
+    float fInfluence;
+};
+
+StructuredBuffer<Collider> colliders;
+
+int _numberOfColliders;
+
+float hash(float h)
+{
+    return frac(sin(h) * 43758.5453123);
+}
+
+float noise(float3 x)
+{
+    float3 p = floor(x);
+    float3 f = frac(x);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n = p.x + p.y * 157.0 + 113.0 * p.z;
+    return lerp(
+			lerp(lerp(hash(n + 0.0), hash(n + 1.0), f.x),
+					lerp(hash(n + 157.0), hash(n + 158.0), f.x), f.y),
+			lerp(lerp(hash(n + 113.0), hash(n + 114.0), f.x),
+					lerp(hash(n + 270.0), hash(n + 271.0), f.x), f.y), f.z);
+}
+
+float fbm(float3 p)
+{
+    float f = 0.0;
+    f = 0.5000 * noise(p);
+    p *= 2.01;
+    f += 0.2500 * noise(p);
+    p *= 2.02;
+    f += 0.1250 * noise(p);
+
+    return f;
+}
+
+float3 calculateSurface( float2 uv, float param )
+{
+    float u = _minU + uv.x * (_maxU - _minU);
+    float v = _minV + uv.y * (_maxV - _minV);
+
+    float3 value;
+    value.x = (2.0f + 0.5f * cos(5 * u + param) * sin(5 * v - param)) * cos(u) * sin(v);
+    value.y = (2.0f + 0.5f * cos(5 * u + param) * sin(5 * v + param)) * sin(u) * sin(v);
+    value.z = (2.0f + 0.5f * cos(5 * u + param) * sin(5 * v - param)) * cos(v);
+
+    return value;
+}
+
+[numthreads(64, 1, 1)]
+void CalculatePearlsInstancesForMesh(uint3 threadId : SV_DispatchThreadID)
+{
+    Pearl outPearl;
+
+    outPearl.vPosition = mul(_meshMatrix, float4(meshPositions[threadId.x], 1.0f)).xyz;
+    float3 normal = mul(_meshMatrix, float4(meshNormals[threadId.x], 0.0f)).xyz;
+    outPearl.vPosition += _normalOffset * normal;
+
+    float pearlScale = _pearlScale;
+
+    for (int i = 0; i < _numberOfColliders; i++)
+    {
+        pearlScale *= smoothstep(0.0f, 1.0f, length(outPearl.vPosition - colliders[i].vPosition) * colliders[i].fInfluence);
+    }
+    
+    outPearl.fScale = pearlScale;
+
+    outPearl.vColor = clamp(_envMap.SampleLevel(myLinearClampSampler, mul(_instancerMatrix, float4(normal.xyz, 0.0f)).xyz, 0).rgb, 0.0, 1.0);
+
+    float cameraDist = length(_cameraWorldPos - mul(_instancerMatrix, float4(outPearl.vPosition, 1.0f)).xyz);
+ 
+    if (cameraDist < _Lod_4_distance)
+        Lod_4_positions.Append(outPearl);
+    else if (cameraDist < _Lod_3_distance)
+        Lod_3_positions.Append(outPearl);
+    else if (cameraDist < _Lod_2_distance)
+        Lod_2_positions.Append(outPearl);
+    else if (cameraDist < _Lod_1_distance)
+        Lod_1_positions.Append(outPearl);
+    else // if (cameraDist < _Lod_0_distance)
+        Lod_0_positions.Append(outPearl);
+}
+
+[numthreads(8, 8, 1)]
+void CalculatePearlsInstances(uint3 threadId : SV_DispatchThreadID)
+{
+    float2 uv = threadId.xy * float2(_gridSizeURcp, _gridSizeVRcp);
+
+    Pearl outPearl;
+
+    outPearl.vPosition = calculateSurface(uv, _time);
+
+    float3 tangent = normalize(calculateSurface(uv + float2(0.01f, 0.0f), _time) - outPearl.vPosition);
+    float3 normal = normalize(cross(calculateSurface(uv + float2(0.0f, 0.001f), _time) - outPearl.vPosition, tangent));
+    
+    outPearl.vPosition += _normalOffset * normal;
+
+    float pearlScale = _pearlScale;
+
+    for (int i = 0; i < _numberOfColliders; i++)
+    {
+        pearlScale *= smoothstep(0.0f, 1.0f, length(outPearl.vPosition - colliders[i].vPosition) * colliders[i].fInfluence);
+    }
+
+    outPearl.fScale = pearlScale;
+
+    outPearl.vColor = clamp(_envMap.SampleLevel(myLinearClampSampler, mul(_instancerMatrix, float4(normal.xyz, 0.0f ) ).xyz, 0).rgb, 0.0, 1.0);
+
+    float cameraDist = length(_cameraWorldPos - mul(_instancerMatrix, float4(outPearl.vPosition, 1.0f)).xyz);
+ 
+    if (cameraDist < _Lod_4_distance)
+        Lod_4_positions.Append(outPearl);
+    else if (cameraDist < _Lod_3_distance)
+        Lod_3_positions.Append(outPearl);
+    else if (cameraDist < _Lod_2_distance)
+        Lod_2_positions.Append(outPearl);
+    else if (cameraDist < _Lod_1_distance)
+        Lod_1_positions.Append(outPearl);
+    else// if (cameraDist < _Lod_0_distance)
+        Lod_0_positions.Append(outPearl);
+}

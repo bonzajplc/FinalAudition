@@ -1,0 +1,126 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!47 &1
+QualitySettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 5
+  m_CurrentQuality: 1
+  m_QualitySettings:
+  - serializedVersion: 2
+    name: Low no MSAA
+    pixelLightCount: 5
+    shadows: 2
+    shadowResolution: 1
+    shadowProjection: 1
+    shadowCascades: 4
+    shadowDistance: 50
+    shadowNearPlaneOffset: 1
+    shadowCascade2Split: 0.08433737
+    shadowCascade4Split: {x: 0.18609993, y: 0.4044534, z: 0.6205126}
+    shadowmaskMode: 1
+    blendWeights: 4
+    textureQuality: 0
+    anisotropicTextures: 2
+    antiAliasing: 0
+    softParticles: 0
+    softVegetation: 1
+    realtimeReflectionProbes: 1
+    billboardsFaceCameraPosition: 1
+    vSyncCount: 0
+    lodBias: 1.5
+    maximumLODLevel: 0
+    particleRaycastBudget: 4096
+    asyncUploadTimeSlice: 2
+    asyncUploadBufferSize: 4
+    resolutionScalingFixedDPIFactor: 1
+    excludedTargetPlatforms:
+    - Android
+  - serializedVersion: 2
+    name: Medium MSAAx2
+    pixelLightCount: 5
+    shadows: 2
+    shadowResolution: 2
+    shadowProjection: 1
+    shadowCascades: 4
+    shadowDistance: 50
+    shadowNearPlaneOffset: 1
+    shadowCascade2Split: 0.08433737
+    shadowCascade4Split: {x: 0.18609993, y: 0.4044534, z: 0.6205126}
+    shadowmaskMode: 1
+    blendWeights: 4
+    textureQuality: 0
+    anisotropicTextures: 2
+    antiAliasing: 2
+    softParticles: 0
+    softVegetation: 1
+    realtimeReflectionProbes: 1
+    billboardsFaceCameraPosition: 1
+    vSyncCount: 0
+    lodBias: 1.5
+    maximumLODLevel: 0
+    particleRaycastBudget: 4096
+    asyncUploadTimeSlice: 2
+    asyncUploadBufferSize: 4
+    resolutionScalingFixedDPIFactor: 1
+    excludedTargetPlatforms:
+    - Android
+  - serializedVersion: 2
+    name: High MSAAx4
+    pixelLightCount: 5
+    shadows: 2
+    shadowResolution: 3
+    shadowProjection: 1
+    shadowCascades: 4
+    shadowDistance: 50
+    shadowNearPlaneOffset: 1
+    shadowCascade2Split: 0.08433737
+    shadowCascade4Split: {x: 0.18609993, y: 0.4044534, z: 0.6205126}
+    shadowmaskMode: 1
+    blendWeights: 4
+    textureQuality: 0
+    anisotropicTextures: 2
+    antiAliasing: 4
+    softParticles: 0
+    softVegetation: 1
+    realtimeReflectionProbes: 1
+    billboardsFaceCameraPosition: 1
+    vSyncCount: 0
+    lodBias: 1.5
+    maximumLODLevel: 0
+    particleRaycastBudget: 4096
+    asyncUploadTimeSlice: 2
+    asyncUploadBufferSize: 4
+    resolutionScalingFixedDPIFactor: 1
+    excludedTargetPlatforms:
+    - Android
+  - serializedVersion: 2
+    name: Ultra MSAAx8
+    pixelLightCount: 5
+    shadows: 2
+    shadowResolution: 3
+    shadowProjection: 1
+    shadowCascades: 4
+    shadowDistance: 50
+    shadowNearPlaneOffset: 1
+    shadowCascade2Split: 0.08433737
+    shadowCascade4Split: {x: 0.18609993, y: 0.4044534, z: 0.6205126}
+    shadowmaskMode: 1
+    blendWeights: 4
+    textureQuality: 0
+    anisotropicTextures: 2
+    antiAliasing: 8
+    softParticles: 0
+    softVegetation: 1
+    realtimeReflectionProbes: 1
+    billboardsFaceCameraPosition: 1
+    vSyncCount: 0
+    lodBias: 1.5
+    maximumLODLevel: 0
+    particleRaycastBudget: 4096
+    asyncUploadTimeSlice: 2
+    asyncUploadBufferSize: 4
+    resolutionScalingFixedDPIFactor: 1
+    excludedTargetPlatforms:
+    - Android
+  m_PerPlatformDefaultQuality:
+    Standalone: 1

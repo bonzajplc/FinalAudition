@@ -1,0 +1,19 @@
+﻿#pragma kernel MultiplyCounter
+#pragma kernel CalculateInstances
+
+RWStructuredBuffer<uint> _numVertices;
+
+[numthreads(1, 1, 1)]
+void MultiplyCounter(uint3 threadId : SV_DispatchThreadID)
+{
+    _numVertices[0] = _numVertices[0] * 3;
+}
+
+[numthreads(1, 1, 1)]
+void CalculateInstances(uint3 threadId : SV_DispatchThreadID)
+{
+    _numVertices[1] = (_numVertices[0] / 21666) + 1; //21666 is 64998/3
+    _numVertices[0] = _numVertices[0] / _numVertices[1];
+    _numVertices[0] = _numVertices[0] * 3;
+}
+

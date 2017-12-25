@@ -1,0 +1,52 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#include "shaderQuat.cginc"
+#include "shaderMath.cginc"
+
+#pragma kernel InverseJuliaSet
+
+float	_cx;
+float	_cy; // real and imaginary parts of c parameter
+int		_N; // number of iterations to perform
+
+struct Vertex
+{
+	float3 vPosition;
+};
+
+RWStructuredBuffer<Vertex>	pointsRW;
+StructuredBuffer<float2>	randomizedPositions;
+
+float hash(float h)
+{
+    return frac(sin(h) * 43758.5453123);
+}
+
+[numthreads(64,1,1)]
+void InverseJuliaSet (uint3 id : SV_DispatchThreadID)
+{
+	float2	wxwy=	randomizedPositions[id.x];
+	float	wx	=	wxwy.x; // [-1.0, 1.0]
+	float	wy	=	wxwy.y;
+	float	r;
+	float	theta;
+	float	sign	=	1.0;
+
+	for (	int	i	=	0;
+			i	<	_N;
+			++i)
+	{
+		r		=	sqrt((wx - _cx) * (wx - _cx) + (wy - _cy) * (wy - _cy));
+		theta	=	atan2(wy - _cy, wx - _cx);
+		//sign	=	wxwy.x < 0 ? -1.0 : 1.0;
+		sign	=	(hash(wx) * 2 - 1) < 0 ? -1.0 : 1.0;
+		wx		=	sign * sqrt(r) * cos(theta / 2.0);
+		wy		=	sign * sqrt(r) * sin(theta / 2.0);
+	}
+	
+	Vertex	v;
+	v.vPosition[0]	=	wx;
+	v.vPosition[1]	=	wy;
+	v.vPosition[2]	=	0;
+
+	pointsRW[id.x]	=	v;
+}

@@ -1,0 +1,209 @@
+﻿/**
+ * Lookup tables and algorithm taken from "Polygonising a scalar field" by Paul Bourke
+ *
+ * Original at: http://paulbourke.net/geometry/polygonise/
+ */
+
+#pragma kernel cs_updateDensityField
+#pragma kernel cs_clearDensityField
+#pragma kernel cs_generateDensityField
+#pragma kernel cs_downscaleDensityFieldBox
+#pragma kernel cs_upscaleDensityFieldBox
+#pragma kernel cs_upscaleDensityFieldTent
+
+RWTexture3D<half> densityTexture_;
+RWTexture3D<half> densityTextureDownscaled_;
+Texture3D<half> densityTextureReadOnly_;
+Texture3D<half> densityTextureDownscaledReadOnly_;
+RWTexture3D<half3> colorTexture_;
+
+SamplerState myLinearClampSampler;
+
+int resolution_;
+float upscaleSampleScale_;
+float gridSizeRcp_;
+float halfGridSizeRcp_;
+int numParticles_;
+
+struct Particle
+{
+	uint position;
+	float magnitude;
+    uint color;
+};
+StructuredBuffer<Particle> particles_;
+
+struct DensityObject
+{
+    int type;
+    float3 position;
+    float3 params;
+};
+StructuredBuffer<DensityObject> densityObjects_;
+int numDensityObjects_;
+
+[numthreads(64, 1, 1)]
+void cs_updateDensityField(uint3 threadId : SV_DispatchThreadID)
+{
+    int3 position = int3((particles_[threadId.x].position >> 16) & 0xff, (particles_[threadId.x].position >> 8) & 0xff, particles_[threadId.x].position & 0xff);
+    //colorTexture_[position] = int3((particles_[threadId.x].color >> 16) & 0xff, (particles_[threadId.x].color >> 8) & 0xff, particles_[threadId.x].color & 0xff) / float3(255.0f, 255.0f, 255.0f);
+    densityTexture_[position] += particles_[threadId.x].magnitude;
+}
+
+void ClearDensityField(uint3 threadId)
+{
+    densityTexture_[threadId] = 0.0f;
+    colorTexture_[threadId] = half3(1.0, 1.0, 1.0);
+}
+
+[numthreads(8, 8, 8)]
+void cs_clearDensityField(uint3 threadId : SV_DispatchThreadID)
+{
+    ClearDensityField(threadId);
+}
+
+[numthreads(8, 8, 8)]
+void cs_generateDensityField(uint3 threadId : SV_DispatchThreadID)
+{
+    //ClearDensityField(threadId);
+
+    float tmpDensity = 0.0f;
+    for (int i = 0; i < numDensityObjects_; i++)
+    {
+        float len = length(threadId * gridSizeRcp_ - densityObjects_[i].position);
+        if( len < 0.01f )
+            len = 0.01;
+
+        if (densityObjects_[i].type == 0 )
+            tmpDensity += densityObjects_[i].params[0] * 1.0f / len;
+        else if (densityObjects_[i].type == 1)
+        {
+            if (len < densityObjects_[i].params[0] )
+                tmpDensity = 0.0f;
+        }
+    }
+    densityTexture_[threadId] = tmpDensity;
+}
+
+[numthreads(8, 8, 8)]
+void cs_downscaleDensityFieldBox(uint3 threadId : SV_DispatchThreadID)
+{
+    float3 p[8] =
+    {
+        p[0] = (threadId + float3(0,   0,   0.5)) * halfGridSizeRcp_,
+		p[1] = (threadId + float3(0.5, 0,   0.5)) * halfGridSizeRcp_,
+		p[2] = (threadId + float3(0.5, 0,   0  )) * halfGridSizeRcp_,
+		p[3] = (threadId + float3(0,   0,   0  )) * halfGridSizeRcp_,
+		p[4] = (threadId + float3(0,   0.5, 0.5)) * halfGridSizeRcp_,
+		p[5] = (threadId + float3(0.5, 0.5, 0.5)) * halfGridSizeRcp_,
+		p[6] = (threadId + float3(0.5, 0.5, 0  )) * halfGridSizeRcp_,
+		p[7] = (threadId + float3(0,   0.5, 0  )) * halfGridSizeRcp_
+    };
+
+    float sum = densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[0], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[1], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[2], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[3], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[4], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[5], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[6], 0) +
+                densityTextureReadOnly_.SampleLevel(myLinearClampSampler, p[7], 0);
+
+    densityTextureDownscaled_[threadId] = sum / 8.0f;
+}
+
+[numthreads(8, 8, 8)]
+void cs_upscaleDensityFieldBox(uint3 threadId : SV_DispatchThreadID)
+{
+    float3 p[8] =
+    {
+        p[0] = (threadId + float3(0, 0, 1) * upscaleSampleScale_) * gridSizeRcp_,
+		p[1] = (threadId + float3(1, 0, 1) * upscaleSampleScale_) * gridSizeRcp_,
+		p[2] = (threadId + float3(1, 0, 0) * upscaleSampleScale_) * gridSizeRcp_,
+		p[3] = (threadId + float3(0, 0, 0) * upscaleSampleScale_) * gridSizeRcp_,
+		p[4] = (threadId + float3(0, 1, 1) * upscaleSampleScale_) * gridSizeRcp_,
+		p[5] = (threadId + float3(1, 1, 1) * upscaleSampleScale_) * gridSizeRcp_,
+		p[6] = (threadId + float3(1, 1, 0) * upscaleSampleScale_) * gridSizeRcp_,
+		p[7] = (threadId + float3(0, 1, 0) * upscaleSampleScale_) * gridSizeRcp_
+    };
+
+    float sum = densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[0], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[1], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[2], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[3], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[4], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[5], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[6], 0) +
+                densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[7], 0);
+
+    densityTexture_[threadId] = sum / 8.0f;
+}
+
+// 27-tap bilinear upsampler (tent filter)
+[numthreads(8, 8, 8)]
+void cs_upscaleDensityFieldTent(uint3 threadId : SV_DispatchThreadID)
+{
+    float4 p[27] =
+    {
+		p[ 0] = float4( (threadId + float3( 0,  0, -1) * upscaleSampleScale_) * gridSizeRcp_, 2.0 ),
+        p[ 1] = float4( (threadId + float3( 1,  0, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 2] = float4( (threadId + float3(-1,  0, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 3] = float4( (threadId + float3( 0,  1, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 4] = float4( (threadId + float3( 0, -1, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 5] = float4( (threadId + float3( 1,  1, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 6] = float4( (threadId + float3( 1, -1, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 7] = float4( (threadId + float3(-1,  1, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[ 8] = float4( (threadId + float3(-1, -1, -1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+
+		p[ 9] = float4( (threadId + float3( 0,  0,  0) * upscaleSampleScale_) * gridSizeRcp_, 4.0 ),
+        p[10] = float4( (threadId + float3( 1,  0,  0) * upscaleSampleScale_) * gridSizeRcp_, 2.0 ),
+		p[11] = float4( (threadId + float3(-1,  0,  0) * upscaleSampleScale_) * gridSizeRcp_, 2.0 ),
+		p[12] = float4( (threadId + float3( 0,  1,  0) * upscaleSampleScale_) * gridSizeRcp_, 2.0 ),
+		p[13] = float4( (threadId + float3( 0, -1,  0) * upscaleSampleScale_) * gridSizeRcp_, 2.0 ),
+		p[14] = float4( (threadId + float3( 1,  1,  0) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[15] = float4( (threadId + float3( 1, -1,  0) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[16] = float4( (threadId + float3(-1,  1,  0) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[17] = float4( (threadId + float3(-1, -1,  0) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+
+
+		p[18] = float4( (threadId + float3( 0,  0,  1) * upscaleSampleScale_) * gridSizeRcp_, 2.0 ),
+        p[19] = float4( (threadId + float3( 1,  0,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[20] = float4( (threadId + float3(-1,  0,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[21] = float4( (threadId + float3( 0,  1,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[22] = float4( (threadId + float3( 0, -1,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[23] = float4( (threadId + float3( 1,  1,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[24] = float4( (threadId + float3( 1, -1,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[25] = float4( (threadId + float3(-1,  1,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 ),
+		p[26] = float4( (threadId + float3(-1, -1,  1) * upscaleSampleScale_) * gridSizeRcp_, 1.0 )
+    };
+
+    float sum = p[ 0].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 0].xyz, 0) +
+                p[ 1].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 1].xyz, 0) +
+                p[ 2].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 2].xyz, 0) +
+                p[ 3].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 3].xyz, 0) +
+                p[ 4].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 4].xyz, 0) +
+                p[ 5].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 5].xyz, 0) +
+                p[ 6].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 6].xyz, 0) +
+                p[ 7].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 7].xyz, 0) +
+                p[ 8].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 8].xyz, 0) +
+                p[ 9].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[ 9].xyz, 0) +
+                p[10].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[10].xyz, 0) +
+                p[11].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[11].xyz, 0) +
+                p[12].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[12].xyz, 0) +
+                p[13].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[13].xyz, 0) +
+                p[14].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[14].xyz, 0) +
+                p[15].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[15].xyz, 0) +
+                p[16].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[16].xyz, 0) +
+                p[17].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[17].xyz, 0) +
+                p[18].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[18].xyz, 0) +
+                p[19].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[19].xyz, 0) +
+                p[20].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[20].xyz, 0) +
+                p[21].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[21].xyz, 0) +
+                p[22].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[22].xyz, 0) +
+                p[23].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[23].xyz, 0) +
+                p[24].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[24].xyz, 0) +
+                p[25].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[25].xyz, 0) +
+                p[26].w * densityTextureDownscaledReadOnly_.SampleLevel(myLinearClampSampler, p[26].xyz, 0);
+
+    densityTexture_[threadId] = sum / 36.0f;
+}
