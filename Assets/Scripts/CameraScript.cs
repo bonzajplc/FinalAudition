@@ -46,9 +46,7 @@ public class CameraScript : MonoBehaviour {
 
     private static bool _isUserPresentCached = false;
     private static bool _isUserPresent = false;
-
-    public static Vector3 cameraHeadWorldSpace = Vector3.zero;
-
+    
     private static float _gpuScale = 1.0f;
     /// <summary>
     /// True if the user is currently wearing the display.
@@ -83,8 +81,10 @@ public class CameraScript : MonoBehaviour {
         renderScale = 0.75f;
 #endif
         UnityEngine.XR.XRSettings.eyeTextureResolutionScale = renderScale;
-
-        transform.localPosition = new Vector3(0.0f, 1.7f, 0.0f);
+        if (UnityEngine.XR.XRSettings.loadedDeviceName == "Oculus")
+            transform.parent.localPosition  =   new Vector3(0.0f, OVRPlugin.eyeHeight, 0.0f);
+        else
+            transform.parent.localPosition  =   Vector3.zero;
     }
 
     private void Start()
@@ -95,8 +95,8 @@ public class CameraScript : MonoBehaviour {
 
     // Update is called once per frame
     void Update () {
-
-		float h = horizontalMouseSpeed * Input.GetAxis("Mouse X");
+	
+        float h = horizontalMouseSpeed * Input.GetAxis("Mouse X");
 		float v = verticalMouseSpeed * Input.GetAxis("Mouse Y");
 
         if (!IsUserPresent)
@@ -159,8 +159,8 @@ public class CameraScript : MonoBehaviour {
 
             //Debug.Log("scaleFactor: " + scalingFactor);
         }
+        
 
-        cameraHeadWorldSpace = transform.position;
     }
 
     float GetPerformanceScaleFactor()

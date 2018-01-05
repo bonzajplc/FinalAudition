@@ -1,6 +1,6 @@
 fileFormatVersion: 2
-guid: 710f315aa6b9bed46b0d81c9dd85ac12
-timeCreated: 1511742768
+guid: f5b94dd31f839134db4680f76e8b195a
+timeCreated: 1515163532
 licenseType: Free
 ModelImporter:
   serializedVersion: 22
@@ -25,6 +25,15 @@ ModelImporter:
     400014: sphereLOD7
     400016: sphereLOD8
     400018: //RootNode
+    2100000: sphereLOD0Mat
+    2100002: sphereLOD1Mat
+    2100004: sphereLOD2Mat
+    2100006: sphereLOD3Mat
+    2100008: sphereLOD4Mat
+    2100010: sphereLOD5Mat
+    2100012: sphereLOD6Mat
+    2100014: sphereLOD7Mat
+    2100016: sphereLOD8Mat
     2300000: sphereLOD0
     2300002: sphereLOD1
     2300004: sphereLOD2
@@ -52,17 +61,12 @@ ModelImporter:
     4300012: sphereLOD6
     4300014: sphereLOD7
     4300016: sphereLOD8
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: initialShadingGroup
-    second: {fileID: 2100000, guid: 0eac725f978524442aeccc3cd61acd63, type: 2}
+  externalObjects: {}
   materials:
-    importMaterials: 0
+    importMaterials: 1
     materialName: 0
     materialSearch: 1
-    materialLocation: 0
+    materialLocation: 1
   animations:
     legacyGenerateAnimations: 4
     bakeSimulation: 0
@@ -100,6 +104,8 @@ ModelImporter:
     optimizeMeshForGPU: 1
     keepQuads: 0
     weldVertices: 1
+    preserveHierarchy: 0
+    indexFormat: 0
     secondaryUVAngleDistortion: 8
     secondaryUVAreaDistortion: 15.000001
     secondaryUVHardAngle: 88

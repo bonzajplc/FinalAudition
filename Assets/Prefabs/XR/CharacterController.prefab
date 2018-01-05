@@ -113,7 +113,7 @@ GameObject:
   m_IsActive: 0
 --- !u!1 &1581548399917414
 GameObject:
-  m_ObjectHideFlags: 0
+  m_ObjectHideFlags: 1
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   serializedVersion: 5
@@ -125,9 +125,25 @@ GameObject:
   - component: {fileID: 114961698585487040}
   - component: {fileID: 114396309738312048}
   - component: {fileID: 81862186633165380}
+  - component: {fileID: 95334906518590854}
   m_Layer: 0
   m_Name: XR Camera
   m_TagString: MainCamera
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!1 &1599077075423904
+GameObject:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  serializedVersion: 5
+  m_Component:
+  - component: {fileID: 4781208735317166}
+  m_Layer: 0
+  m_Name: XR Camera Pivot
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -193,13 +209,13 @@ Transform:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1167978914575684}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0, y: -0.28, z: -10.77}
+  m_LocalScale: {x: 0.707153, y: 0.7071531, z: 0.7071531}
   m_Children:
   - {fileID: 4318816423991434}
   - {fileID: 4145408543201652}
   - {fileID: 4401821815428916}
-  - {fileID: 4584024056618924}
+  - {fileID: 4781208735317166}
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -209,11 +225,25 @@ Transform:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1581548399917414}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children:
+  - {fileID: 224619479270411442}
+  m_Father: {fileID: 4781208735317166}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!4 &4781208735317166
+Transform:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1599077075423904}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 1.7, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
-  - {fileID: 224619479270411442}
+  - {fileID: 4584024056618924}
   m_Father: {fileID: 4548950814014666}
   m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -313,6 +343,23 @@ AudioListener:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1581548399917414}
   m_Enabled: 1
+--- !u!95 &95334906518590854
+Animator:
+  serializedVersion: 3
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1581548399917414}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 0}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 1
+  m_LinearVelocityBlending: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
 --- !u!114 &114126593145764690
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -462,7 +509,7 @@ MonoBehaviour:
   volumeTrigger: {fileID: 4584024056618924}
   volumeLayer:
     serializedVersion: 2
-    m_Bits: 4
+    m_Bits: 4096
   stopNaNPropagation: 0
   antialiasingMode: 0
   temporalAntialiasing:
