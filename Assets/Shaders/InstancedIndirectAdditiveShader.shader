@@ -24,8 +24,6 @@ Shader "ArtSpaces/InstancedIndirectAdditive" {
 
 #pragma target 5.0
 
-sampler2D _AlphaTex;
-
 	struct Vertex
 	{
 		float3 vPosition;

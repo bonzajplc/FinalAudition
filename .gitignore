@@ -3,3 +3,5 @@ Library
 FinalAudition.csproj
 FinalAudition.Editor.csproj
 FinalAudition.sln
+*.db
+*.opendb
